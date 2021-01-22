@@ -1,10 +1,9 @@
 import { JSDOM } from "jsdom";
 import htmlFile from "../htmlFile";
 import * as should from "should";
-import { ForgoRef } from "../../..";
 import { run } from "./script";
 
-export default function () {
+export default function replaceByKey() {
   it("replaces a child by key", async () => {
     const dom = new JSDOM(htmlFile(), {
       runScripts: "outside-only",

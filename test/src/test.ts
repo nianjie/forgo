@@ -11,6 +11,9 @@ import replaceByKey from "./replaceByKey";
 import skipRender from "./skipRender";
 import clearsProps from "./clearsProps";
 import shouldUpdate from "./shouldUpdate";
+import renderPrimitives from "./renderPrimitives";
+import assertIsComponent from "./assertIsComponent";
+import primitiveComponent from "./primitiveComponent";
 
 boundary();
 mount();
@@ -25,3 +28,6 @@ replaceByKey();
 skipRender();
 clearsProps();
 shouldUpdate();
+renderPrimitives();
+assertIsComponent();
+primitiveComponent();

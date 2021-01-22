@@ -1,3 +1,9 @@
+declare global {
+  interface ChildNode {
+    __forgo?: NodeAttachedState;
+  }
+}
+
 /*
   A type that wraps a reference.
 */
@@ -44,7 +50,7 @@ export type ForgoComponent<TProps extends ForgoElementProps> = {
   render: (
     props: TProps,
     args: ForgoRenderArgs
-  ) => ForgoElement<ForgoComponentCtor<TProps>, TProps>;
+  ) => ForgoNode;
   error?: (
     props: TProps,
     args: ForgoErrorArgs
@@ -81,7 +87,9 @@ export type ForgoNode =
   | number
   | boolean
   | object
+  | null
   | BigInt
+  | undefined
   | ForgoElement<string | ForgoComponentCtor<any>, any>;
 
 /*
@@ -138,6 +146,8 @@ let env: EnvType = {
   document: documentObject,
 };
 
+const isString = (val: unknown): val is string => typeof val === "string";
+
 export function setCustomEnv(value: any) {
   env = value;
 }
@@ -182,7 +192,7 @@ function internalRender(
   else {
     return renderCustomComponent(
       forgoNode as ForgoElement<ForgoComponentCtor<any>, any>,
-      node,
+      node as Required<ChildNode>,
       pendingAttachStates,
       fullRerender,
       boundary
@@ -210,7 +220,7 @@ function renderString(
 ): { node: ChildNode } {
   // Text nodes will always be recreated
   const textNode = env.document.createTextNode(text);
-  
+
   if (node) {
     // We have to get oldStates before attachProps;
     // coz attachProps will overwrite with new states.
@@ -272,11 +282,11 @@ function renderDOMElement<TProps extends ForgoElementProps>(
     } else {
       nodeToBindTo = node;
     }
-    
+
     // We have to get oldStates before attachProps;
     // coz attachProps will overwrite with new states.
     const oldComponentStates = getForgoState(node)?.components;
-    
+
     attachProps(forgoElement, nodeToBindTo, pendingAttachStates);
 
     if (oldComponentStates) {
@@ -345,7 +355,7 @@ function boundaryFallback<T>(
 */
 function renderCustomComponent<TProps extends ForgoElementProps>(
   forgoElement: ForgoElement<ForgoComponentCtor<TProps>, TProps>,
-  node: ChildNode | undefined,
+  node: Required<ChildNode> | undefined,
   pendingAttachStates: NodeAttachedComponentState<any>[],
   fullRerender: boolean,
   boundary?: ForgoComponent<any>
@@ -416,8 +426,11 @@ function renderCustomComponent<TProps extends ForgoElementProps>(
     // We don't have compatible state, have to create a new component.
     else {
       const args: ForgoRenderArgs = { element: { componentIndex } };
+
       const ctor = forgoElement.type;
       const component = ctor(forgoElement.props);
+      assertIsComponent(ctor, component);
+
       boundary = component.error ? component : boundary;
 
       // Create new component state
@@ -461,6 +474,8 @@ function renderCustomComponent<TProps extends ForgoElementProps>(
     };
     const ctor = forgoElement.type;
     const component = ctor(forgoElement.props);
+    assertIsComponent(ctor, component);
+
     boundary = component.error ? component : boundary;
 
     // We'll have to create a new component state
@@ -521,11 +536,10 @@ function renderChildNodes<TProps extends ForgoElementProps>(
   const childNodes = parentElement.childNodes;
 
   // Children will not be an array if single item
-  const forgoChildren = (forgoChildrenObj !== undefined
-    ? Array.isArray(forgoChildrenObj)
-      ? forgoChildrenObj
-      : [forgoChildrenObj]
-    : []) as ForgoNode[];
+  const forgoChildren = (Array.isArray(forgoChildrenObj)
+    ? forgoChildrenObj
+    : [forgoChildrenObj]
+  ).filter((x) => typeof x !== "undefined" && x !== null);
 
   let forgoChildIndex = 0;
 
@@ -584,13 +598,11 @@ function renderChildNodes<TProps extends ForgoElementProps>(
               );
 
         if (findResult.found) {
-          for (let i = forgoChildIndex; i < findResult.index; i++) {
-            const nodesToRemove = Array.from(childNodes).slice(
-              forgoChildIndex,
-              findResult.index
-            );
-            unloadNodes(nodesToRemove);
-          }
+          const nodesToRemove = Array.from(childNodes).slice(
+            forgoChildIndex,
+            findResult.index
+          );
+          unloadNodes(nodesToRemove);
           internalRender(
             forgoChild,
             childNodes[forgoChildIndex],
@@ -826,7 +838,14 @@ function havePropsChanged(newProps: any, oldProps: any) {
 /*
   Mount will render the DOM as a child of the specified container element.
 */
-export function mount(forgoNode: ForgoNode, parentElement: HTMLElement | null) {
+export function mount(
+  forgoNode: ForgoNode,
+  container: HTMLElement | string | null
+) {
+  let parentElement = isString(container)
+    ? env.document.querySelector(container)
+    : container;
+
   if (parentElement) {
     const { node } = internalRender(forgoNode, undefined, [], true);
     parentElement.appendChild(node);
@@ -898,8 +917,8 @@ export function rerender(
   ForgoNodes can be primitive types.
   Convert all primitive types to their string representation.
 */
-function stringOfPrimitiveNode(node: ForgoNode) {
-  return typeof node === "undefined" ? "undefined" : node.toString();
+function stringOfPrimitiveNode(node: ForgoNode): string {
+  return typeof node === "undefined" || node === null ? "" : node.toString();
 }
 
 /*
@@ -908,7 +927,9 @@ function stringOfPrimitiveNode(node: ForgoNode) {
 */
 function isForgoElement(node: ForgoNode): node is ForgoElement<any, any> {
   return (
-    typeof node !== "undefined" && (node as any).__is_forgo_element__ === true
+    typeof node !== "undefined" &&
+    node !== null &&
+    (node as any).__is_forgo_element__ === true
   );
 }
 
@@ -916,19 +937,35 @@ function isForgoElement(node: ForgoNode): node is ForgoElement<any, any> {
   Get the state (NodeAttachedState) saved into an element.
 */
 export function getForgoState(node: ChildNode): NodeAttachedState | undefined {
-  return (node as any).__forgo;
+  return node.__forgo;
 }
 
 /*
   Same as above, but will never be undefined. (Caller makes sure.)
 */
-function getExistingForgoState(node: ChildNode): NodeAttachedState {
-  return (node as any).__forgo;
+function getExistingForgoState(node: Required<ChildNode>): NodeAttachedState {
+  return node.__forgo;
 }
 
 /*
   Sets the state (NodeAttachedState) on an element.
 */
 export function setForgoState(node: ChildNode, state: NodeAttachedState): void {
-  (node as any).__forgo = state;
+  node.__forgo = state;
+}
+
+/*
+  Throw if component is a non-component
+*/
+function assertIsComponent(
+  ctor: ForgoComponentCtor<any>,
+  component: ForgoComponent<any>
+) {
+  if (!component.render) {
+    throw new Error(
+      `${
+        ctor.name || "Unnamed"
+      } component constructor must return an object having a render() function.`
+    );
+  }
 }

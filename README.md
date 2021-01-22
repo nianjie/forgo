@@ -27,26 +27,30 @@ An easy way to get a project started is by cloning one of the following template
 
 ## A Forgo Component
 
-A Forgo Component is a function that returns an object with a render() function. The render function is called for the first render, and then subsequently for each rerender.
+A Forgo Component must have a function (called Component Constructor) that returns an object with a render() function (called Component). 
+
+Here's an Example.
 
 ```tsx
 import { rerender } from "forgo";
 
-function SimpleTimer() {
-  let seconds = 0; // Look ma no useState
+function SimpleTimer(initialProps) {
+  let seconds = 0; // Just a regular variable, no hooks!
 
   return {
     render(props, args) {
       setTimeout(() => {
         seconds++;
-        rerender(args.element); // rerender!
+        rerender(args.element); // rerender
       }, 1000);
 
-      return <div>{seconds} secs have elapsed...</div>;
+      return <div>{seconds} seconds have elapsed... {props.firstName}!</div>;
     },
   };
 }
 ```
+
+The Component Constructor function and the Component's render() method are both called during the first render with the initial set of props. But for subsequent rerenders of the same component, only the render() gets called (with new props). So if you're using props, remember to get it from the render() method.
 
 ## Mounting the Component
 
@@ -60,12 +64,20 @@ window.addEventListener("load", () => {
 });
 ```
 
+You could also pass a selector instead of an element.
+
+```js
+window.addEventListener("load", () => {
+  mount(<SimpleTimer />, "#root");
+});
+```
+
 ## Child Components and Passing Props
 
 That works just as you'd have seen in React.
 
 ```jsx
-function Parent(props) {
+function Parent(initialProps) {
   return {
     render(props, args) {
       return (
@@ -78,7 +90,7 @@ function Parent(props) {
   };
 }
 
-function Greeter(props) {
+function Greeter(initialProps) {
   return {
     render(props, args) {
       return <div>Hello {props.firstName}</div>;
@@ -89,21 +101,19 @@ function Greeter(props) {
 
 ## Reading Form Input Elements
 
-You can read form input element values with regular DOM APIs.
+To access the actual DOM elements corresponding to your markup (and the values contained within them), you need to use the ref attribute in the markup. An object referenced by the ref attribute in an element's markup will have its 'value' property set to the actual DOM element when it gets created.
 
-There's a small hurdle though - how do we get a reference to the actual DOM element? That's where the ref attribute comes in. An object referenced by the ref attribute in an element's markup will have its value property set to the actual DOM element.
-
-Better explained with an example:
+Here's an example:
 
 ```jsx
-function Component(props) {
+function Component(initialProps) {
   const myInputRef = {};
 
   return {
     render(props, args) {
       function onClick() {
         const inputElement = myInputRef.value;
-        alert(inputElement.value); // Read the text input!
+        alert(inputElement.value); // Read the text input.
       }
 
       return (
@@ -117,12 +127,44 @@ function Component(props) {
 }
 ```
 
+You can access and read form input elements using regular DOM APIs as well. For example, the following code will work just fine if you assign an id to the input element.
+
+```jsx
+function onClick() {
+  const inputElement = document.getElementById("myinput");
+  alert(inputElement.value);
+}
+```
+
+Lastly, you can pass an event handler to an input and extract the current value from the input event:
+
+```jsx
+function Component(initialProps) {
+  const myInputRef = {};
+
+  return {
+    render(props, args) {
+      function onInput(e) {
+        e.preventDefault();
+        alert(e.target.value);
+      }
+
+      return (
+        <div>
+          <input type="text" oninput={onInput} />
+        </div>
+      );
+    },
+  };
+}
+```
+
 ## Component Unmount
 
 When a component is unmounted, Forgo will invoke the unmount() function if defined for a component. It receives the current props and args as arguments, just as in the render() function.
 
 ```jsx
-function Greeter(props) {
+function Greeter(initialProps) {
   return {
     render(props, args) {
       return <div>Hello {props.firstName}</div>;
@@ -139,7 +181,7 @@ function Greeter(props) {
 You'd rarely have to use this. mount() gets called with the same arguments as render () but after getting mounted on a real DOM node. At this point you can expect args.element.node to be populated, where args is the second parameter to mount() and render().
 
 ```jsx
-function Greeter(props) {
+function Greeter(initialProps) {
   return {
     render(props, args) {
       return <div id="hello">Hello {props.firstName}</div>;
@@ -156,7 +198,7 @@ function Greeter(props) {
 When the shouldUpdate() function is defined for a component, Forgo will call it with newProps and oldProps and check if the return value is true before rendering the component. Returning false will skip rendering the component.
 
 ```jsx
-function Greeter(props) {
+function Greeter(initialProps) {
   return {
     render(props, args) {
       return <div>Hello {props.firstName}</div>;
@@ -183,7 +225,7 @@ function BadComponent() {
 }
 
 // Parent can catch the error by defining the error() function.
-function Parent(props) {
+function Parent(initialProps) {
   return {
     render() {
       return (
@@ -208,7 +250,7 @@ function Parent(props) {
 The most straight forward way to do rerender is by invoking it with `args.element` as the only argument - as follows.
 
 ```tsx
-function TodoList(props) {
+function TodoList(initialProps) {
   let todos = [];
 
   return {
@@ -250,8 +292,11 @@ window.addEventListener("load", () => {
 
 ## Routing
 
-Forgo Router is a tiny router for Forgo, and is just around 1KB gzipped.
-https://github.com/forgojs/forgo-router
+Forgo Router (forgo-router) is a tiny router for Forgo, and is just around 1KB gzipped. https://github.com/forgojs/forgo-router
+
+## Application State Management
+
+Forgo State (forgo-state) is an easy-to-use application state management solution for Forgo (like Redux or MobX), and is less than 1KB gzipped. https://github.com/forgojs/forgo-state
 
 ## Try it out on CodeSandbox
 
@@ -260,110 +305,6 @@ You can try the [Todo List app with Forgo](https://codesandbox.io/s/forgo-todos-
 Or if you prefer Typescript, try [Forgo TodoList in TypeScript](https://codesandbox.io/s/forgo-todos-typescript-9v0iy).
 
 There is also an example for using [Forgo with forgo-router](https://codesandbox.io/s/forgo-router-typescript-px4sg).
-
-## Recap with a complete example
-
-Finally, let's do a recap with a more complete example. Let's make a Todo List app in TypeScript.
-
-There will be three components:
-
-1. TodoList (the main component)
-2. TodoListItem
-3. AddTodo
-
-Here's the TodoList, which hosts the other two components.
-
-```tsx
-type TodoListProps = {};
-
-function TodoList(props: TodoListProps) {
-  let todos: string[] = [];
-
-  return {
-    render(props: TodoListProps, args: ForgoRenderArgs) {
-      function addTodos(text: string) {
-        todos.push(text);
-        rerender(args.element);
-      }
-
-      return (
-        <div>
-          <h1>Forgo Todos</h1>
-          <ul>
-            {todos.map((t) => (
-              <TodoListItem text={t} />
-            ))}
-          </ul>
-          <AddTodo onAdd={addTodos} />
-        </div>
-      );
-    },
-  };
-}
-```
-
-Here's the TodoListItem component, which simply displays a Todo.
-
-```tsx
-type TodoListItemProps = {
-  text: string;
-};
-
-function TodoListItem(props: TodoListItemProps) {
-  return {
-    render() {
-      return <li>{props.text}</li>;
-    },
-  };
-}
-```
-
-And here's the AddTodo component. It takes an onAdd function from the parent, which gets called whenever a new todo is added.
-
-```tsx
-type AddTodoProps = {
-  onAdd: (text: string) => void;
-};
-
-function AddTodo(props: AddTodoProps) {
-  const input: { value?: HTMLInputElement } = {};
-
-  function saveTodo() {
-    const inputEl = input.value;
-    if (inputEl) {
-      props.onAdd(inputEl.value);
-      inputEl.value = "";
-      inputEl.focus();
-    }
-  }
-
-  // Add the todo when Enter is pressed
-  function onKeyPress(e: KeyboardEvent) {
-    if (e.key === "Enter") {
-      saveTodo();
-    }
-  }
-
-  return {
-    render() {
-      return (
-        <div>
-          <input onkeypress={onKeyPress} type="text" ref={input} />
-          <button onclick={saveTodo}>Add me!</button>
-        </div>
-      );
-    },
-  };
-}
-```
-
-That's all. Mount it, and we're ready to go.
-
-```ts
-window.addEventListener("load", () => {
-  mount(<TodoList />, document.getElementById("root"));
-});
-```
 
 ## Building
 

@@ -21,3 +21,13 @@ export function run(dom: JSDOM) {
     mount(<BasicComponent />, document.getElementById("root"));
   });
 }
+
+export function runQuerySelector(dom: JSDOM) {
+  window = dom.window;
+  document = window.document;
+  setCustomEnv({ window, document });
+
+  window.addEventListener("load", () => {
+    mount(<BasicComponent />, "#root");
+  });
+}

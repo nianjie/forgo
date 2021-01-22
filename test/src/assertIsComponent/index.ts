@@ -3,8 +3,8 @@ import htmlFile from "../htmlFile";
 import "should";
 import { run } from "./script";
 
-export default function passProps() {
-  it("passes props to child", async () => {
+export default function mount() {
+  it("asserts if ctor returns a component", async () => {
     const dom = new JSDOM(htmlFile(), {
       runScripts: "outside-only",
       resources: "usable",
@@ -13,12 +13,14 @@ export default function passProps() {
 
     run(dom);
 
-    const innerHtml = await new Promise<string>((resolve) => {
+    await new Promise<void>((resolve) => {
       window.addEventListener("load", () => {
-        resolve(window.document.body.innerHTML);
+        resolve();
       });
     });
 
-    innerHtml.should.containEql("Hello");
+    (window.componentError as Error).message.should.equal(
+      "BasicComponent component constructor must return an object having a render() function."
+    );
   });
 }
